@@ -100,6 +100,12 @@
   .status-line .late{color:var(--late)}
   .status-line .hint{color:var(--sub);font-weight:400}
   .repeat-hint{font-size:11.5px;color:var(--sub);margin-top:12px;opacity:.85}
+  /* 用 CSS 画月亮，避免 emoji 在部分设备显示为方块 */
+  .moon-ico{
+    display:inline-block;width:76px;height:76px;border-radius:50%;
+    background:radial-gradient(circle at 36% 32%, #fffef6 0%, #e6ecff 40%, #9fb0e8 70%, #6e7fc4 100%);
+    box-shadow:0 0 46px 8px rgba(160,180,255,.40), inset -12px -14px 28px rgba(90,110,180,.45);
+  }
 
   /* 统计 */
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:2px}
@@ -405,7 +411,7 @@
 <!-- 启动层 -->
 <div class="overlay" id="startOverlay">
   <div class="inner">
-    <div class="big" style="font-size:52px">🌙</div>
+    <div class="big"><span class="moon-ico"></span></div>
     <h2>睡前打卡</h2>
     <p>每天 23:40 前完成打卡，养成早睡习惯。<br>
        到点未打卡，会语音提醒你「夜深了，该休息了」。<br>
