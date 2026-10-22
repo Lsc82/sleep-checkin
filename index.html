@@ -90,6 +90,23 @@
   .moonbtn:hover{transform:translateY(-3px) scale(1.02)}
   .moonbtn:active{transform:scale(.96)}
   .moonbtn .ic{font-size:30px;line-height:1}
+  /* 图标改用纯 CSS 绘制，彻底摆脱 emoji 字体依赖：
+     未打卡=月牙，已打卡=对勾。颜色跟随按钮状态。 */
+  .ic{display:block;width:28px;height:28px;position:relative;font-size:0}
+  .ic::before{
+    content:"";position:absolute;inset:0;border-radius:50%;
+    background:currentColor;color:#3a4570;
+    -webkit-mask:radial-gradient(circle at 68% 34%, transparent 0 54%, #000 55%);
+    mask:radial-gradient(circle at 68% 34%, transparent 0 54%, #000 55%);
+  }
+  /* 已打卡：对勾 */
+  .moonbtn.done .ic::before{
+    background:transparent;color:#1d6b46;
+    -webkit-mask:none;mask:none;
+    width:14px;height:24px;left:6px;top:0;
+    border-right:4px solid currentColor;border-bottom:4px solid currentColor;
+    border-radius:2px;transform:rotate(45deg);transform-origin:center;
+  }
   .moonbtn.done{
     background:radial-gradient(circle at 36% 32%, #d9ffe9 0%, #a9efc8 45%, #4fd18b 100%);
     box-shadow:0 0 0 10px rgba(79,209,139,.10), 0 0 42px 6px rgba(79,209,139,.32);
@@ -197,20 +214,31 @@
   .foot{text-align:center;font-size:11px;color:#5b6288;margin-top:6px;line-height:1.7}
 
   /* 遮罩 / 启动层 */
+  /* 启动层：必须可滚动 + 内容超出屏幕时靠上对齐，
+     否则安卓文字放大/小视口下「开始使用」按钮会被裁到屏幕外，表现为“点了没反应” */
   .overlay{
-    position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
-    background:rgba(6,9,20,.92);backdrop-filter:blur(8px);text-align:center;padding:26px;
+    position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    background:rgba(6,9,20,.92);backdrop-filter:blur(8px);text-align:center;
+    padding:26px;
+    padding-top:calc(26px + env(safe-area-inset-top));
+    padding-bottom:calc(26px + env(safe-area-inset-bottom));
+    overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   }
-  .overlay .inner{max-width:400px}
+  .overlay.hide{display:none}
+  .overlay .inner{max-width:400px;width:100%;flex:0 0 auto;margin:auto 0}
   .overlay h2{font-size:20px;font-weight:600;margin:0 0 10px}
   .overlay p{font-size:13.5px;color:var(--sub);line-height:1.9;margin:0 0 22px}
   .overlay .big{margin-bottom:18px}
   .overlay .startbtn{
     background:linear-gradient(135deg,#8fa9ff,#6d86e0);color:#0b1024;border:none;
-    padding:14px 40px;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;
+    padding:16px 40px;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;
     box-shadow:0 8px 28px rgba(120,150,255,.35);letter-spacing:1px;font-family:inherit;
+    min-height:52px;width:100%;max-width:260px;
+    touch-action:manipulation;-webkit-appearance:none;appearance:none;
+    position:relative;z-index:2;
   }
-  .overlay.hide{display:none}
+  .overlay .startbtn:active{transform:scale(.97)}
 
   /* 到点提醒弹层 */
   .alertbox{
@@ -277,10 +305,40 @@
     .moonbtn{width:104px;height:104px}
     .count-time{font-size:34px}
   }
-  /* 触摸设备：去掉 hover 位移，避免误触发 */
+  /* 矮视口（键盘弹起 / 系统字体放大 / 浏览器工具栏占位）：
+     启动层内容压缩，确保「开始使用」始终可见可点 */
+  @media(max-height:560px){
+    .overlay{padding:14px 18px;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+    .overlay .big{margin-bottom:8px}
+    .overlay .big .moon-ico{width:52px;height:52px}
+    .overlay h2{font-size:18px;margin-bottom:6px}
+    .overlay p{font-size:12.5px;line-height:1.65;margin-bottom:14px}
+    .overlay .startbtn{padding:13px 32px;min-height:46px}
+  }
+  /* 内容再挤时（如系统字体放大）：隐藏装饰性大月亮，把按钮钉在底部，
+     保证无论文字多大，按钮一定在屏幕内 */
+  .overlay.compact .big{display:none}
+  .overlay.compact{justify-content:flex-start}
+  .overlay.compact .inner{margin:0 0 auto}
+  /* 更极端：连说明文字都收掉，只留标题 + 按钮 */
+  .overlay.compact.tiny p{display:none}
+  .overlay.compact.tiny h2{margin:0 0 18px}
+  .overlay.compact .startbtn{
+    position:sticky;bottom:0;margin-top:16px;
+    box-shadow:0 -14px 26px rgba(6,9,20,.95),0 8px 28px rgba(120,150,255,.35);
+  }
+  /* 触摸设备：去掉 hover 位移，避免误触发；并消除 iOS/安卓 300ms 点击延迟 */
   @media(hover:none){
     .moonbtn:hover{transform:none}
     .moonbtn:active{transform:scale(.96)}
+    button,.mbtn,.tbtn,.startbtn,.cal-nav button{touch-action:manipulation}
+  }
+  /* emoji 兜底：部分安卓 WebView 缺彩色 emoji 字体，会显示成方框，
+     这里强制使用文本字体并加轻微字重，保证至少能画出字形 */
+  .ic,.disc,.moon2{
+    font-family:"Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",
+                "Android Emoji",sans-serif;
+    font-variant-emoji:emoji;
   }
   /* 尊重系统"减少动态效果"偏好 */
   @media(prefers-reduced-motion:reduce){
@@ -309,7 +367,7 @@
   <div class="card">
     <div class="checkin-area">
       <button class="moonbtn" id="checkinBtn">
-        <span class="ic">🌙</span>
+        <span class="ic"></span>
         <span id="btnText">打卡</span>
       </button>
       <div class="status-line" id="statusLine"></div>
@@ -409,14 +467,14 @@
 </div>
 
 <!-- 启动层 -->
-<div class="overlay" id="startOverlay">
+  <div class="overlay" id="startOverlay" role="dialog" aria-label="开始使用">
   <div class="inner">
     <div class="big"><span class="moon-ico"></span></div>
     <h2>睡前打卡</h2>
     <p>每天 23:40 前完成打卡，养成早睡习惯。<br>
        到点未打卡，会语音提醒你「夜深了，该休息了」。<br>
        <span style="color:#7c9cff">点击下方按钮开启，并允许播放声音。</span></p>
-    <button class="startbtn" id="startBtn">开 始 使 用</button>
+    <button class="startbtn" id="startBtn" type="button">开 始 使 用</button>
   </div>
 </div>
 
@@ -661,7 +719,7 @@ function renderButton(){
     var last = list[list.length-1];
     var onTime = isOnTime(last);
     btn.classList.add('done');
-    btn.querySelector('.ic').textContent = '✅';
+    btn.querySelector('.ic').textContent = '';   // 对勾由 CSS 绘制（.moonbtn.done）
     bt.textContent = list.length > 1 ? ('已打卡 ' + list.length + ' 次') : '已打卡';
     var times = list.join('、');
     var head = (list.length > 1 ? ('今日第 ' + list.length + ' 次 · ' + last) : ('今日 ' + last));
@@ -672,7 +730,7 @@ function renderButton(){
          (list.length > 1 ? '<div style="font-size:12px;color:var(--sub);margin-top:4px">全部打卡：' + times + '</div>' : ''));
   }else{
     btn.classList.remove('done');
-    btn.querySelector('.ic').textContent = '🌙';
+    btn.querySelector('.ic').textContent = '';   // 月牙由 CSS 绘制（.ic::before）
     bt.textContent = '打卡';
     var nowMin = new Date().getHours()*60 + new Date().getMinutes();
     sl.innerHTML = nowMin >= minOf(cfg.alertTime)
@@ -1035,17 +1093,73 @@ $('alertMusic').addEventListener('click', function(){ playMusic(); });
   }catch(e){ /* 忽略：不影响主体功能 */ }
 })();
 
-/* 启动层 */
-$('startBtn').addEventListener('click', function(){
-  $('startOverlay').classList.add('hide');
-  // 激活音频（首次用户交互）
+/* 启动层
+   注意：每一步都用 try/catch 隔离——低端安卓上 AudioContext / speechSynthesis /
+   大体积 base64 音频解码都可能抛错，任何一步失败都不能阻断「关闭遮罩」和后续渲染。 */
+function enterApp(){
+  var ov = $('startOverlay');
+  if(ov){ ov.classList.add('hide'); ov.setAttribute('aria-hidden','true'); }
+  // 每步独立兜底，某一步失败不影响其它步
   try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){}
-  if('speechSynthesis' in window){ try{ var v=pickZhVoice(); window.speechSynthesis.getVoices(); }catch(e){} }
-  initMusic();
-  renderAll();
-  // 补提醒：昨天漏打卡
-  checkYesterdayMiss();
-});
+  try{ if('speechSynthesis' in window){ pickZhVoice(); window.speechSynthesis.getVoices(); } }catch(e){}
+  try{ initMusic(); }catch(e){ /* 音乐失败不影响打卡 */ }
+  try{ renderAll(); }catch(e){}
+  try{ checkYesterdayMiss(); }catch(e){}
+}
+var startBtnEl = $('startBtn');
+if(startBtnEl){
+  // 同时监听 click 与 touchend：部分安卓 WebView 的 click 会被拦截或延迟
+  var entered = false;
+  var onStart = function(ev){
+    if(ev){ if(ev.cancelable) ev.preventDefault(); }
+    if(entered) return;   // 防重复触发
+    entered = true;
+    enterApp();
+  };
+  startBtnEl.addEventListener('click', onStart);
+  startBtnEl.addEventListener('touchend', onStart, {passive:false});
+  startBtnEl.addEventListener('touchstart', function(){ startBtnEl.style.opacity='.85'; }, {passive:true});
+  startBtnEl.addEventListener('touchend', function(){ startBtnEl.style.opacity=''; }, {passive:true});
+}
+
+/* 启动层防裁切：系统字体放大或浏览器工具栏占位时，
+   按钮可能被挤出可视区。这里检测后自动降级为「紧凑模式」并滚动到可见位置。 */
+(function fixStartLayout(){
+  var ov = $('startOverlay'), btn = $('startBtn');
+  if(!ov || !btn) return;
+  function adjust(){
+    if(ov.classList.contains('hide')) return;
+    var r = btn.getBoundingClientRect();
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    // 按钮必须完整落在视口内；否则逐级降级（只加不删，避免抖动与闪烁）
+    if(!ov.classList.contains('compact') && (r.bottom > vh - 4 || r.top < 0 || r.height === 0)){
+      ov.classList.add('compact');
+      r = btn.getBoundingClientRect();
+    }
+    // 二级降级：紧凑模式仍放不下，收掉说明文字
+    if(!ov.classList.contains('tiny') && (r.bottom > vh - 4 || r.top < 0)){
+      ov.classList.add('tiny');
+      r = btn.getBoundingClientRect();
+    }
+    // 仍超出则滚动到可见（留 8px 余量）
+    if(r.bottom > vh - 4){
+      try{ ov.scrollTop += (r.bottom - vh + 12); }catch(e){}
+    }else if(r.top < 0){
+      try{ ov.scrollTop += (r.top - 12); }catch(e){}
+    }
+  }
+  adjust();
+  window.addEventListener('resize', function(){ setTimeout(adjust, 60); });
+  window.addEventListener('orientationchange', function(){ setTimeout(adjust, 260); });
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', function(){ setTimeout(adjust, 60); });
+  }
+  // 字体加载完成后可能改变高度，再校正一次
+  setTimeout(adjust, 400);
+  // 字体加载/重排后可能改变高度，多次校正（只加不删 class，避免闪烁）
+  setTimeout(adjust, 400);
+  setTimeout(adjust, 1200);
+})();
 
 function checkYesterdayMiss(){
   var y = new Date(); y.setDate(y.getDate()-1);
