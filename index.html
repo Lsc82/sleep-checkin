@@ -659,8 +659,14 @@ if('speechSynthesis' in window){
 
 /* ============ 到点提醒 ============ */
 var alertFiredFor = null;   // 已提醒的日期
+var alertLockUntil = 0;     // 防事件穿透：此时间点之前忽略提醒层按钮点击
 function checkAlert(nowMin, now){
   var tk = todayKey(now);
+  // 启动层还开着时直接跳过（且不消耗 alertFiredFor），
+  // 因为提醒层 z-index 高于启动层，弹出会盖住「开始使用」按钮。
+  // 进入主界面后 enterApp() 会再调一次 checkAlert。
+  var ov = $('startOverlay');
+  if(ov && !ov.classList.contains('hide')) return;
   if(dayCount(tk) > 0) return;                  // 已有打卡记录则不提醒
   if(!cfg.alertOn) return;                      // 关闭则不提醒
   if(nowMin < minOf(cfg.alertTime)) return;     // 未到点
@@ -670,6 +676,9 @@ function checkAlert(nowMin, now){
 }
 function fireAlert(){
   $('alertBox').classList.add('show');
+  // 防事件穿透：提醒层刚出现时，同一次触摸的 touchend/click 可能落在
+  // “稍后/立即打卡”按钮上，导致弹层瞬间被关掉。这里前 450ms 屏蔽点击。
+  alertLockUntil = Date.now() + 450;
   speak(VOICE_TEXT);
   if(cfg.autoMusic) playMusic(true);
 }
@@ -1034,9 +1043,21 @@ $('installTip').addEventListener('click', function(){
   alert(msg);
 });
 
-$('alertClose').addEventListener('click', function(){ $('alertBox').classList.remove('show'); });
-$('alertCheckin').addEventListener('click', function(){ $('alertBox').classList.remove('show'); doCheckin(); });
-$('alertMusic').addEventListener('click', function(){ playMusic(); });
+/* 防穿透：提醒层刚弹出时忽略误触（见 fireAlert 里的 alertLockUntil） */
+function alertClickable(){ return Date.now() >= alertLockUntil; }
+
+$('alertClose').addEventListener('click', function(){
+  if(!alertClickable()) return;
+  $('alertBox').classList.remove('show');
+});
+$('alertCheckin').addEventListener('click', function(){
+  if(!alertClickable()) return;
+  $('alertBox').classList.remove('show'); doCheckin();
+});
+$('alertMusic').addEventListener('click', function(){
+  if(!alertClickable()) return;
+  playMusic();
+});
 
 /* ---------- PWA：动态注入 manifest 与图标，便于"添加到主屏幕" ---------- */
 (function initPWA(){
@@ -1105,21 +1126,30 @@ function enterApp(){
   try{ initMusic(); }catch(e){ /* 音乐失败不影响打卡 */ }
   try{ renderAll(); }catch(e){}
   try{ checkYesterdayMiss(); }catch(e){}
+  // 进入主界面后，若已过截止时间且今天还没打卡，才弹出语音提醒
+  try{
+    var n = new Date();
+    checkAlert(n.getHours()*60 + n.getMinutes(), n);
+  }catch(e){}
 }
 var startBtnEl = $('startBtn');
 if(startBtnEl){
   // 同时监听 click 与 touchend：部分安卓 WebView 的 click 会被拦截或延迟
   var entered = false;
   var onStart = function(ev){
-    if(ev){ if(ev.cancelable) ev.preventDefault(); }
+    // 注意：不要在这里 preventDefault —— 取消默认行为会连带取消后续 click，
+    // 导致部分机型「点了完全没反应」。这里只做幂等处理。
     if(entered) return;   // 防重复触发
     entered = true;
     enterApp();
   };
   startBtnEl.addEventListener('click', onStart);
-  startBtnEl.addEventListener('touchend', onStart, {passive:false});
+  // 兜底：部分旧 WebView 的 click 会被吞，补一次 touchend
+  startBtnEl.addEventListener('touchend', onStart, {passive:true});
+  // 视觉反馈
   startBtnEl.addEventListener('touchstart', function(){ startBtnEl.style.opacity='.85'; }, {passive:true});
   startBtnEl.addEventListener('touchend', function(){ startBtnEl.style.opacity=''; }, {passive:true});
+  startBtnEl.addEventListener('touchcancel', function(){ startBtnEl.style.opacity=''; }, {passive:true});
 }
 
 /* 启动层防裁切：系统字体放大或浏览器工具栏占位时，
