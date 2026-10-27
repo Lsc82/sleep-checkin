@@ -169,8 +169,15 @@
   .music .disc{
     width:54px;height:54px;border-radius:50%;flex:0 0 54px;
     background:radial-gradient(circle at 40% 38%, #5566a8 0%, #2b3358 42%, #131a35 72%);
-    display:flex;align-items:center;justify-content:center;font-size:22px;
+    display:flex;align-items:center;justify-content:center;font-size:0;
     box-shadow:0 6px 18px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);
+    position:relative;
+  }
+  /* 唱片中心：CSS 画的月牙，不依赖 emoji 字体 */
+  .music .disc::before{
+    content:"";width:20px;height:20px;border-radius:50%;background:#dbe4ff;
+    -webkit-mask:radial-gradient(circle at 70% 32%, transparent 0 52%, #000 53%);
+    mask:radial-gradient(circle at 70% 32%, transparent 0 52%, #000 53%);
   }
   .music .disc.spin{animation:spin 6s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -408,7 +415,7 @@
   <div class="card">
     <div class="sec-title"><h2>睡前音乐</h2><span class="muted" id="musicState">未播放</span></div>
     <div class="music">
-      <div class="disc" id="disc">🌙</div>
+      <div class="disc" id="disc"></div>
       <div class="info">
         <div class="name" id="musicName">Summer Rain</div>
         <div class="by" id="musicBy">Shane Ivers · 舒缓钢琴 · 2 分 44 秒 / 遍</div>
