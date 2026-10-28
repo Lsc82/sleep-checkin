@@ -946,7 +946,62 @@ function toggleMusic(){
 }
 
 /* 睡前音乐：外部文件按需加载（避免 2MB+ 大文件传输中断导致音乐丢失） */
-window.__CLAIR_MUSIC__ = { name:"Summer Rain", src:"summer-rain.mp3", loaded:false, data:null };
+window.__CLAIR_MUSIC__ = { name:"Summer Rain", src:"summer-rain.mp3", loaded:false, data:null,
+                           bytes:984976 };
+
+/* 分段下载：弱网/跨境链路上一次性拉 985KB 容易卡在中途不动。
+   改为按 128KB 分段 Range 请求，逐段累积，每段有独立超时与重试；
+   全部到手后拼成 Blob 交给 <audio>，解码走本地内存，秒级就绪。 */
+function loadMusicByChunks(M, onDone, onFail){
+  var CHUNK = 128 * 1024, total = M.bytes, parts = [], got = 0, stall = 0, noRange = false;
+  if(!total){ onFail('unknown-size'); return; }
+  var cacheKey = 'sleepCheckin.bgm.v1';
+
+  function next(){
+    if(got >= total){ finish(); return; }
+    var start = got, end = Math.min(got + CHUNK - 1, total - 1);
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var killer = ctrl ? setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, 12000) : null;
+    fetch(M.src, { headers:{ 'Range':'bytes=' + start + '-' + end }, cache:'force-cache',
+                   signal: ctrl ? ctrl.signal : undefined })
+      .then(function(r){
+        if(!r.ok && r.status !== 206) throw new Error('http ' + r.status);
+        // 服务端不支持 Range（回 200 全量）时，没必要再分段，直接整包用掉
+        if(r.status === 200) noRange = true;
+        return r.arrayBuffer();
+      })
+      .then(function(buf){
+        if(killer) clearTimeout(killer);
+        if(!buf || buf.byteLength === 0) throw new Error('empty');
+        parts = [ new Uint8Array(buf) ];      // 整包场景下直接替换，避免重复累积
+        got = buf.byteLength;
+        if(noRange) got = total;
+        stall = 0;
+        // 进度反馈：让用户知道在动
+        if(!musicReady){
+          var pct = Math.min(99, Math.round(got / total * 100));
+          $('musicState').textContent = '加载中 ' + pct + '%';
+        }
+        next();
+      })
+      .catch(function(err){
+        if(killer) clearTimeout(killer);
+        // 每段最多重试 3 次，仍失败则放弃并回落原生 <audio> 流式加载
+        if(++stall <= 3){ setTimeout(next, 400 * stall); }
+        else { onFail(String(err)); }
+      });
+  }
+
+  function finish(){
+    var blob;
+    try{ blob = new Blob(parts, { type:'audio/mpeg' }); }catch(e){ onFail('blob'); return; }
+    if(blob.size < total * 0.98){ onFail('short'); return; }
+    try{ localStorage.setItem(cacheKey, ''); }catch(e){}   // 仅作标记，不存二进制
+    onDone(blob);
+  }
+
+  next();
+}
 
 function initMusic(){
   var M = window.__CLAIR_MUSIC__;
@@ -960,23 +1015,42 @@ function initMusic(){
   var src = M.data || M.src;
   musicReady = false;
   $('musicState').textContent = '加载中…';
-  audio.src = src;
-  audio.load();
 
-  audio.addEventListener('canplaythrough', onMusicReady, {once:true});
-  audio.addEventListener('loadeddata', onMusicReady, {once:true});
-  audio.addEventListener('error', function(){
-    $('musicState').textContent = '音乐加载失败';
-    $('playBtn').disabled = false;   // 仍允许点，走合成音兜底
-  }, {once:true});
+  function attach(url){
+    audio.src = url;
+    audio.load();
+    audio.addEventListener('canplaythrough', onMusicReady, {once:true});
+    audio.addEventListener('loadeddata', onMusicReady, {once:true});
+    audio.addEventListener('error', function(){
+      $('musicState').textContent = '音乐加载失败';
+      $('playBtn').disabled = false;   // 仍允许点，走合成音兜底
+    }, {once:true});
 
-  var tries = 0;
-  (function waitReady(){
-    if(musicReady) return;
-    if(audio.readyState >= 3){ onMusicReady(); return; }
-    if(++tries > 30){ $('musicState').textContent = '音乐加载较慢…'; return; }
-    setTimeout(waitReady, 300);
-  })();
+    var tries = 0;
+    (function waitReady(){
+      if(musicReady) return;
+      if(audio.readyState >= 3){ onMusicReady(); return; }
+      if(++tries > 40){ $('musicState').textContent = '音乐加载较慢…'; return; }
+      setTimeout(waitReady, 300);
+    })();
+  }
+
+  // 优先走分段下载（对弱网更稳）；失败再退回浏览器原生流式加载
+  var fellBack = false;
+  function fallback(reason){
+    if(fellBack) return;
+    fellBack = true;
+    try{ console.warn('[music] chunk load failed:', reason, '→ fallback to stream'); }catch(e){}
+    $('musicState').textContent = '加载中…';
+    attach(src);
+  }
+
+  if(M.data){ attach(M.data); return; }   // 内嵌 base64 直接可用
+  loadMusicByChunks(M, function(blob){
+    var url;
+    try{ url = URL.createObjectURL(blob); }catch(e){ fallback('objecturl'); return; }
+    attach(url);
+  }, fallback);
 }
 
 function onMusicReady(){
