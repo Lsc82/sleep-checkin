@@ -5,7 +5,7 @@
    - 静态资源（图标）：缓存优先
    - 音频（mp3）：不预缓存，走浏览器原生缓存，避免拖慢安装
 */
-var CACHE = 'sleep-checkin-v3';
+var CACHE = 'sleep-checkin-v4';
 var CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
