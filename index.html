@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="睡前打卡">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>睡前打卡 · 早睡调理</title>
 <style>
   :root{
@@ -1103,58 +1106,21 @@ $('alertMusic').addEventListener('click', function(){
   playMusic();
 });
 
-/* ---------- PWA：动态注入 manifest 与图标，便于"添加到主屏幕" ---------- */
+/* ---------- PWA：注册 Service Worker（配合真实 manifest.webmanifest 与 PNG 图标）
+   注意：早期用 URL.createObjectURL(manifest) 注入 blob: 链接的做法在安卓 Chrome 上
+   不被"安装应用"逻辑接受，且无 Service Worker 时只会降级为"创建快捷方式"。
+   现改为根目录真实文件 manifest.webmanifest + icon-192/512.png + 本 SW。 */
 (function initPWA(){
   try{
-    // 用 canvas 画一个月亮图标
-    function makeIcon(size){
-      var c = document.createElement('canvas');
-      c.width = c.height = size;
-      var g = c.getContext('2d');
-      // 背景
-      var bg = g.createLinearGradient(0,0,0,size);
-      bg.addColorStop(0,'#0d1226'); bg.addColorStop(1,'#0a0e1f');
-      g.fillStyle = bg; g.fillRect(0,0,size,size);
-      // 月亮
-      var r = size*0.30, cx = size/2, cy = size*0.46;
-      var mg = g.createRadialGradient(cx-r*0.3, cy-r*0.35, r*0.1, cx, cy, r);
-      mg.addColorStop(0,'#fffdf2'); mg.addColorStop(0.5,'#e6ecff'); mg.addColorStop(1,'#9fb0e8');
-      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI*2); g.fillStyle = mg; g.fill();
-      g.shadowColor = 'rgba(160,180,255,.8)'; g.shadowBlur = size*0.08;
-      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI*2); g.fill();
-      g.shadowBlur = 0;
-      // 星星
-      g.fillStyle = 'rgba(255,255,255,.75)';
-      [[0.24,0.20,0.018],[0.74,0.15,0.014],[0.80,0.62,0.012],[0.20,0.70,0.011]].forEach(function(s){
-        g.beginPath(); g.arc(size*s[0], size*s[1], size*s[2], 0, Math.PI*2); g.fill();
-      });
-      return c.toDataURL('image/png');
-    }
-    var icon192 = makeIcon(192), icon512 = makeIcon(512);
-    var manifest = {
-      name: '睡前打卡',
-      short_name: '睡前打卡',
-      description: '每天 23:40 前完成睡前打卡，养成早睡习惯',
-      start_url: '.',
-      display: 'standalone',
-      orientation: 'portrait',
-      background_color: '#0a0e1f',
-      theme_color: '#0a0e1f',
-      icons: [
-        { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any' }
-      ]
-    };
-    var blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
-    var link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = URL.createObjectURL(blob);
-    document.head.appendChild(link);
-    // iOS 图标
-    var apple = document.createElement('link');
-    apple.rel = 'apple-touch-icon';
-    apple.href = icon192;
-    document.head.appendChild(apple);
+    if(!('serviceWorker' in navigator)) return;
+    // file:// 协议下无法注册 SW，直接跳过
+    if(location.protocol !== 'https:' && location.protocol !== 'http:') return;
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js', { scope: './' }).then(function(reg){
+        // 静默检查更新
+        try{ reg.update && reg.update(); }catch(e){}
+      }).catch(function(){ /* 注册失败不影响打卡与音乐 */ });
+    });
   }catch(e){ /* 忽略：不影响主体功能 */ }
 })();
 
