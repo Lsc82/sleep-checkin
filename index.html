@@ -47,18 +47,27 @@
   .star{position:absolute;background:#fff;border-radius:50%;opacity:.7;animation:tw 3s infinite ease-in-out}
   @keyframes tw{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}
   .moon-bg{
-    position:fixed;top:-120px;right:-90px;width:340px;height:340px;border-radius:50%;
+    position:fixed;top:-170px;right:-130px;width:340px;height:340px;border-radius:50%;
     background:radial-gradient(circle at 38% 34%, #fffdf2 0%, #e8ecff 42%, #aab6e8 68%, rgba(120,135,190,0) 72%);
-    box-shadow:0 0 120px 40px rgba(190,205,255,.28), 0 0 260px 90px rgba(120,140,220,.16);
-    opacity:.85;z-index:0;pointer-events:none;
+    box-shadow:0 0 120px 40px rgba(190,205,255,.20), 0 0 260px 90px rgba(120,140,220,.10);
+    opacity:.55;z-index:0;pointer-events:none;
     animation:float 12s ease-in-out infinite;
   }
   @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(14px)}}
 
   .wrap{position:relative;z-index:1;width:100%;max-width:520px;padding:26px 18px 0}
   header{text-align:center;margin-bottom:18px}
-  header h1{margin:0;font-size:21px;font-weight:600;letter-spacing:.5px}
-  header .date{margin-top:6px;font-size:13px;color:var(--sub);letter-spacing:.5px}
+  header h1{margin:0;font-size:21px;font-weight:600;letter-spacing:.5px;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    color:#eef2ff;text-shadow:0 1px 12px rgba(10,14,31,.85), 0 0 2px rgba(10,14,31,.9)}
+  header .date{margin-top:6px;font-size:13px;color:#a7b1d8;letter-spacing:.5px;
+    text-shadow:0 1px 10px rgba(10,14,31,.9)}
+  /* 标题旁的小月亮（CSS 绘制，避免 emoji 显示为方块） */
+  .h-moon{
+    display:inline-block;width:19px;height:19px;border-radius:50%;flex:none;
+    background:radial-gradient(circle at 34% 30%, #fffef6 0%, #e6ecff 45%, #a8b6ea 100%);
+    box-shadow:0 0 12px 2px rgba(170,190,255,.55);
+  }
 
   .card{
     background:var(--card);
@@ -362,7 +371,7 @@
 
 <div class="wrap">
   <header>
-    <h1>🌙 睡前打卡</h1>
+    <h1><span class="h-moon" aria-hidden="true"></span>睡前打卡</h1>
     <div class="date" id="todayText">—</div>
   </header>
 
@@ -491,7 +500,7 @@
 <!-- 到点提醒 -->
 <div class="alertbox" id="alertBox">
   <div class="box">
-    <div class="moon2">🌙</div>
+    <div class="moon2"><span class="moon-ico" style="width:46px;height:46px;box-shadow:0 0 30px 6px rgba(160,180,255,.45)"></span></div>
     <h3>夜深了，该休息了</h3>
     <p id="alertDesc">已经过了睡前打卡时间，记得打卡并放下手机，早点休息。</p>
     <div class="row">
@@ -607,7 +616,7 @@ function tick(){
     el.textContent = '已过 ' + Math.floor(-left/3600) + ' 小时 ' + pad(Math.floor((-left%3600)/60)) + ' 分';
     el.classList.add('over');
     lb.textContent = done ? '今日已完成打卡' : '今日打卡已超时';
-    sub.textContent = done ? '辛苦了，早点休息 🌙' : '还没打卡，快点打卡后休息吧';
+    sub.textContent = done ? '辛苦了，早点休息' : '还没打卡，快点打卡后休息吧';
   }
   // 到点提醒检测
   checkAlert(nowMin, now);
@@ -710,8 +719,8 @@ function doCheckin(){
 
   var onTime = isOnTime(hhmm);
   if(onTime){
-    toast(nth === 1 ? ('✅ 打卡成功，达标！已记录 ' + hhmm)
-                    : ('✅ 第 ' + nth + ' 次打卡 ' + hhmm + '，达标'));
+    toast(nth === 1 ? ('打卡成功，达标！已记录 ' + hhmm)
+                    : ('第 ' + nth + ' 次打卡 ' + hhmm + '，达标'));
     if(cfg.autoMusic) playMusic(true);
     if(nth === 1) speak('打卡成功，晚安，好梦');
   }else{
@@ -743,7 +752,7 @@ function renderButton(){
     var times = list.join('、');
     var head = (list.length > 1 ? ('今日第 ' + list.length + ' 次 · ' + last) : ('今日 ' + last));
     sl.innerHTML = onTime
-      ? ('<span class="ok">' + head + ' · 按时达标 🎉</span>' +
+      ? ('<span class="ok">' + head + ' · 按时达标</span>' +
          (list.length > 1 ? '<div style="font-size:12px;color:var(--sub);margin-top:4px">全部打卡：' + times + '</div>' : ''))
       : ('<span class="late">' + head + ' · 超过 ' + cfg.alertTime + '</span>' +
          (list.length > 1 ? '<div style="font-size:12px;color:var(--sub);margin-top:4px">全部打卡：' + times + '</div>' : ''));
@@ -1204,7 +1213,7 @@ if(startBtnEl){
 function checkYesterdayMiss(){
   var y = new Date(); y.setDate(y.getDate()-1);
   var k = todayKey(y);
-  if(dayCount(k) === 0){ setTimeout(function(){ toast('提示：昨天没有打卡记录，今晚记得早点打卡 🌙'); }, 1200); }
+  if(dayCount(k) === 0){ setTimeout(function(){ toast('提示：昨天没有打卡记录，今晚记得早点打卡'); }, 1200); }
 }
 
 /* 主循环 */
