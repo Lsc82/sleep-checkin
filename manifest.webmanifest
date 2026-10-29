@@ -3,16 +3,16 @@
   "short_name": "睡前打卡",
   "description": "每天 23:40 前完成睡前打卡，养成早睡习惯",
   "id": "/sleep-checkin/",
-  "start_url": "./?src=pwa",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "background_color": "#0a0e1f",
   "theme_color": "#0a0e1f",
   "lang": "zh-CN",
   "dir": "ltr",
   "categories": ["health", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-192.png",
