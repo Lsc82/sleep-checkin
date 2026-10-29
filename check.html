@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>安装自检 · 睡前打卡</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;padding:18px 14px calc(28px + env(safe-area-inset-bottom));
+    background:radial-gradient(120% 80% at 50% 0%,#161d3c 0%,#0a0e1f 55%);
+    color:#e9edff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    min-height:100vh;font-size:15px;line-height:1.6;
+  }
+  .hd{text-align:center;margin:6px 0 16px}
+  .hd h1{margin:0;font-size:19px;font-weight:600;letter-spacing:.5px}
+  .hd p{margin:5px 0 0;font-size:12.5px;color:#8e97c0}
+  .verdict{
+    border-radius:16px;padding:16px 16px;margin-bottom:14px;
+    border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.05);
+  }
+  .verdict .v-ico{font-size:26px;line-height:1;margin-bottom:6px}
+  .verdict .v-t{font-size:17px;font-weight:700;margin-bottom:5px}
+  .verdict .v-d{font-size:13px;color:#b3bce0}
+  .verdict.ok{border-color:rgba(110,220,160,.45);background:rgba(60,190,130,.12)}
+  .verdict.ok .v-t{color:#7fe3ae}
+  .verdict.warn{border-color:rgba(255,200,90,.45);background:rgba(255,190,60,.11)}
+  .verdict.warn .v-t{color:#ffd166}
+  .verdict.bad{border-color:rgba(255,120,120,.45);background:rgba(255,90,90,.11)}
+  .verdict.bad .v-t{color:#ff8f8f}
+  .card{
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;padding:4px 14px;margin-bottom:12px;
+  }
+  .row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13.5px}
+  .row:last-child{border-bottom:none}
+  .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:7px}
+  .dot.g{background:#5fe0a0;box-shadow:0 0 9px rgba(95,224,160,.75)}
+  .dot.y{background:#ffd166;box-shadow:0 0 9px rgba(255,209,102,.7)}
+  .dot.r{background:#ff7b7b;box-shadow:0 0 9px rgba(255,123,123,.7)}
+  .dot.n{background:#5b6488}
+  .r-k{flex:none;width:92px;color:#98a2c9;font-size:12.5px}
+  .r-v{flex:1;min-width:0;word-break:break-all;color:#dfe5ff}
+  .r-v small{display:block;color:#8b95be;font-size:11.5px;margin-top:2px;line-height:1.5}
+  .advice{
+    background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.28);
+    border-radius:14px;padding:13px 14px;margin-bottom:12px;font-size:13px;color:#f0dca8;
+  }
+  .advice b{color:#ffe9a8}
+  .advice ol{margin:7px 0 0;padding-left:19px}
+  .advice li{margin:4px 0}
+  .btns{display:flex;gap:10px;margin-top:4px}
+  button{
+    flex:1;padding:12px;border-radius:12px;border:1px solid rgba(150,175,255,.30);
+    background:rgba(120,145,255,.14);color:#dbe3ff;font-size:14px;font-weight:600;
+    cursor:pointer;font-family:inherit;
+  }
+  button.primary{background:linear-gradient(135deg,#9db4ff,#7189e6);color:#0b1024;border:none}
+  button:active{transform:scale(.98)}
+  textarea{
+    width:100%;margin-top:12px;min-height:130px;border-radius:12px;padding:11px;
+    background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);color:#cfd8f7;
+    font-size:11.5px;font-family:ui-monospace,Menlo,monospace;line-height:1.55;resize:vertical;
+  }
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>安装自检</h1>
+  <p>检查你的手机能否把这个网页装成桌面 App</p>
+</div>
+
+<div class="verdict" id="verdict">
+  <div class="v-ico">⏳</div>
+  <div class="v-t">正在检测…</div>
+  <div class="v-d">大约需要 5 秒，请稍候</div>
+</div>
+
+<div class="card" id="list"></div>
+
+<div id="adviceBox"></div>
+
+<div class="btns">
+  <button class="primary" id="copyBtn" type="button">复制检测结果</button>
+  <button id="gotoBtn" type="button">打开打卡页</button>
+</div>
+<textarea id="out" readonly placeholder="点「复制检测结果」后，内容会显示在这里，方便你发给我"></textarea>
+
+<script>
+(function(){
+  var rows = [];
+  var result = { ua: navigator.userAgent, rows: [] };
+
+  function add(key, ok, value, hint){
+    rows.push({ key:key, ok:ok, value:value, hint:hint||'' });
+    result.rows.push(key + ': ' + value + (hint ? ' | ' + hint : ''));
+  }
+
+  function render(){
+    var list = document.getElementById('list');
+    list.innerHTML = rows.map(function(r){
+      var c = r.ok === true ? 'g' : r.ok === false ? 'r' : r.ok === 'warn' ? 'y' : 'n';
+      return '<div class="row"><span class="dot ' + c + '"></span>' +
+             '<span class="r-k">' + r.key + '</span>' +
+             '<span class="r-v">' + r.value +
+             (r.hint ? '<small>' + r.hint + '</small>' : '') + '</span></div>';
+    }).join('');
+  }
+
+  function verdict(type, icon, title, desc, advice){
+    var v = document.getElementById('verdict');
+    v.className = 'verdict ' + type;
+    v.innerHTML = '<div class="v-ico">' + icon + '</div><div class="v-t">' + title + '</div><div class="v-d">' + desc + '</div>';
+    var box = document.getElementById('adviceBox');
+    if(advice){
+      box.innerHTML = '<div class="advice">' + advice + '</div>';
+    }
+    render();
+  }
+
+  /* ---------- 1. 识别浏览器 ---------- */
+  var ua = navigator.userAgent;
+  var browser = '未知浏览器', support = 'unknown', bHint = '';
+
+  if(/MicroMessenger/i.test(ua)){
+    browser = '微信内置浏览器'; support = false;
+    bHint = '微信里无法安装，必须换浏览器打开';
+  }else if(/QQ\/[\d.]+/i.test(ua) && !/MQQBrowser/i.test(ua)){
+    browser = 'QQ 内置浏览器'; support = false;
+    bHint = 'QQ 里无法安装，必须换浏览器打开';
+  }else if(/AlipayClient/i.test(ua)){
+    browser = '支付宝内置浏览器'; support = false;
+    bHint = '支付宝里无法安装，必须换浏览器打开';
+  }else if(/Weibo/i.test(ua)){
+    browser = '微博内置浏览器'; support = false;
+  }else if(/HUAWEI|HarmonyOS/i.test(ua) && /Browser/i.test(ua)){
+    browser = '华为浏览器'; support = 'warn';
+    bHint = '部分机型支持，菜单里找「添加到桌面」';
+  }else if(/MiuiBrowser|XiaoMi/i.test(ua)){
+    browser = '小米浏览器'; support = 'warn';
+    bHint = '菜单里可能有「添加到桌面」';
+  }else if(/HeyTapBrowser|OppoBrowser/i.test(ua)){
+    browser = 'OPPO 浏览器'; support = 'warn';
+  }else if(/VivoBrowser/i.test(ua)){
+    browser = 'vivo 浏览器'; support = 'warn';
+  }else if(/UCBrowser|Quark/i.test(ua)){
+    browser = 'UC / 夸克浏览器'; support = 'warn';
+    bHint = 'UC 系浏览器对 PWA 支持不完整';
+  }else if(/baidubrowser|BIDUBrowser/i.test(ua)){
+    browser = '百度浏览器'; support = 'warn';
+  }else if(/SamsungBrowser/i.test(ua)){
+    browser = '三星浏览器'; support = true;
+    bHint = '支持，菜单里找「添加页面到」→「主屏幕」';
+  }else if(/EdgA?\//i.test(ua)){
+    browser = 'Edge'; support = true;
+  }else if(/Firefox/i.test(ua)){
+    browser = 'Firefox'; support = 'warn';
+    bHint = 'Firefox 安卓不支持 PWA 安装';
+  }else if(/Chrome\/[\d.]+/i.test(ua)){
+    browser = 'Chrome'; support = true;
+  }
+  add('浏览器', support === true ? true : support === false ? false : 'warn', browser, bHint);
+
+  var isAndroid = /Android/i.test(ua);
+  add('系统', isAndroid ? true : 'warn', isAndroid ? 'Android' : (/iPhone|iPad/i.test(ua) ? 'iOS' : '桌面/其它'),
+      isAndroid ? '' : '本页主要针对安卓排查');
+
+  /* ---------- 2. 安全上下文（https 或 localhost） ---------- */
+  var secure = window.isSecureContext === true;
+  var https = location.protocol === 'https:';
+  add('HTTPS', secure ? true : false, https ? '是' : (secure ? '本地受信环境' : '否（' + location.protocol + '）'),
+      secure ? '' : '必须是 https 才能安装');
+
+  /* ---------- 3. 当前是否已安装 ---------- */
+  var standalone = false;
+  try{
+    standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                 navigator.standalone === true;
+  }catch(e){}
+  add('当前运行方式', true, standalone ? '已作为 App 运行' : '普通网页');
+
+  /* ---------- 4. manifest ---------- */
+  var link = document.querySelector('link[rel="manifest"]');
+  var manOk = false, manDetail = '';
+  add('manifest 标签', link ? true : false, link ? '已声明' : '缺失');
+
+  /* ---------- 5. Service Worker ---------- */
+  var swSupported = 'serviceWorker' in navigator;
+  add('Service Worker', swSupported ? true : false, swSupported ? '浏览器支持' : '不支持');
+
+  /* ---------- 6. 安装事件 ---------- */
+  var bipFired = false;
+
+  /* 关于 installBar：本页不装 SW 注册逻辑，避免与主页面互相干扰 */
+
+  function finish(swState, manInfo, iconInfo){
+    if(manInfo) add('manifest 内容', true, manInfo, '');
+    if(iconInfo) add('图标', true, iconInfo, '');
+    if(swState !== null) add('SW 激活', swState === 'activated' ? true : (swState === 'timeout' ? false : 'warn'), swState);
+
+    // 判定
+    if(support === false){
+      verdict('bad', '⛔', '这个浏览器不支持安装',
+        '你正在用「' + browser + '」打开本页，它没有「安装到桌面」功能。',
+        '<b>怎么解决：</b><ol>' +
+        '<li>点右上角「···」，选「在浏览器打开」或「用系统浏览器打开」</li>' +
+        '<li>如果手机装了 Chrome，选 Chrome 打开</li>' +
+        '<li>在 Chrome 里再打开本页，就会看到「安装」按钮</li></ol>');
+      return;
+    }
+    if(!secure){
+      verdict('bad', '⛔', '不是 HTTPS，无法安装', '浏览器只允许 https 网页安装成 App。', '');
+      return;
+    }
+    if(standalone){
+      verdict('ok', '✅', '已经装好了', '你现在就是通过桌面图标打开的。', '');
+      return;
+    }
+    if(!swSupported){
+      verdict('bad', '⛔', '浏览器不支持 Service Worker',
+        '这是 PWA 安装的必要条件，你的浏览器缺少该能力。',
+        '<b>怎么解决：</b><ol><li>换用 Chrome 打开本页</li><li>或把页面加入书签，从书签访问</li></ol>');
+      return;
+    }
+    if(swState === 'timeout' || swState === 'error'){
+      verdict('warn', '⚠️', 'Service Worker 没能激活',
+        '这通常是网络问题：跨境访问 GitHub 较慢，脚本下载超时。',
+        '<b>怎么解决：</b><ol><li>换 WiFi / 4G 再刷新一次</li><li>等 10 秒后下拉刷新</li><li>仍然不行就告诉我</li></ol>');
+      return;
+    }
+    if(bipFired){
+      verdict('ok', '✅', '可以安装',
+        '浏览器已确认可安装，回到打卡页点底部「安装」按钮即可。',
+        '如果打卡页没看到安装条，点浏览器右上角菜单 →「安装应用」。');
+      return;
+    }
+    verdict('warn', '⚠️', '暂未收到安装许可',
+      '站点文件都正常，但浏览器还没判定为「可安装」。常见两个原因：首次访问、网络慢。',
+      '<b>怎么办：</b><ol>' +
+      '<li>在页面上点几下、停留 10 秒，然后下拉刷新</li>' +
+      '<li>到打卡页看看底部有没有出现「安装」按钮</li>' +
+      '<li>直接点右上角菜单，看有没有「安装应用」或「添加到主屏幕」</li></ol>');
+  }
+
+  /* 异步检测 */
+  var tasks = [];
+
+  // manifest 内容
+  tasks.push(
+    !link ? Promise.resolve(null) : fetch(link.href, {cache:'no-store'})
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(j){
+        manOk = true;
+        var ic = (j.icons || []);
+        var has192 = ic.some(function(i){ return /192/.test(i.sizes || ''); });
+        var has512 = ic.some(function(i){ return /512/.test(i.sizes || ''); });
+        result.manifest = j;
+        return {
+          man: 'name=' + (j.name || '-') + ' / display=' + (j.display || '-') +
+               ' / start=' + (j.start_url || '-'),
+          icon: ic.length + ' 个' + (has192 && has512 ? '（192+512 齐全）' : '（缺少必要尺寸）')
+        };
+      })
+      .catch(function(e){ add('manifest 内容', false, '解析失败: ' + e.message); return null; })
+  );
+
+  // SW 激活（最多等 15 秒）——本页主动注册一次，才能真实反映主页面能否激活
+  tasks.push(
+    !swSupported ? Promise.resolve(null) : (function(){
+      return new Promise(function(resolve){
+        var done = false;
+        var timer = setTimeout(function(){
+          if(!done){ done = true; resolve('timeout'); }
+        }, 15000);
+        function settle(v){
+          if(done) return;
+          done = true; clearTimeout(timer); resolve(v);
+        }
+        function watch(reg){
+          if(reg.active && reg.active.state === 'activated'){ settle('activated'); return; }
+          var sw = reg.installing || reg.waiting || reg.active;
+          if(!sw){ settle('timeout'); return; }
+          if(sw.state === 'activated'){ settle('activated'); return; }
+          sw.addEventListener('statechange', function(){
+            if(sw.state === 'activated') settle('activated');
+          });
+          // installing 卡住（install 里 waitUntil 阻塞）会被上面的 timer 兜住
+        }
+        if(location.protocol !== 'https:' && location.protocol !== 'http:'){
+          settle('error'); return;
+        }
+        navigator.serviceWorker.register('./sw.js', { scope:'./' })
+          .then(function(reg){ watch(reg); })
+          .catch(function(){ settle('error'); });
+      });
+    })()
+  );
+
+  // beforeinstallprompt（最多等 8 秒）
+  tasks.push(new Promise(function(resolve){
+    window.addEventListener('beforeinstallprompt', function(e){
+      e.preventDefault();
+      bipFired = true;
+      resolve(true);
+    });
+    setTimeout(function(){ resolve(false); }, 8000);
+  }));
+
+  Promise.all(tasks).then(function(res){
+    var manInfo = res[0] || {}, swState = res[1], fired = res[2];
+    if(fired) bipFired = true;
+    finish(swState, manInfo.man, manInfo.icon);
+  }).catch(function(){
+    finish(null, '', '');
+  });
+
+  /* 按钮 */
+  document.getElementById('copyBtn').addEventListener('click', function(){
+    var txt = '【睡前打卡 · 安装自检】\n' + result.rows.join('\n') +
+              '\n结论: ' + document.querySelector('.v-t').textContent +
+              '\n时间: ' + new Date().toLocaleString('zh-CN');
+    var out = document.getElementById('out');
+    out.value = txt;
+    out.style.display = 'block';
+    try{
+      navigator.clipboard.writeText(txt).then(function(){
+        document.getElementById('copyBtn').textContent = '已复制 ✓';
+      }).catch(function(){});
+    }catch(e){
+      out.select();
+    }
+  });
+
+  document.getElementById('gotoBtn').addEventListener('click', function(){
+    location.href = './';
+  });
+})();
+</script>
+</body>
+</html>
