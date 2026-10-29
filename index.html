@@ -285,6 +285,35 @@
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  /* ---------- 安装到桌面引导条 ---------- */
+  .installbar{
+    position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
+    display:none;align-items:center;gap:10px;padding:11px 12px;border-radius:16px;
+    background:linear-gradient(135deg,rgba(40,52,96,.98),rgba(26,34,66,.98));
+    border:1px solid rgba(150,175,255,.30);
+    box-shadow:0 14px 38px rgba(0,0,0,.55);z-index:65;
+    max-width:496px;margin:0 auto;
+  }
+  .installbar.show{display:flex;animation:ibIn .28s ease-out}
+  @keyframes ibIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+  .ib-ico{
+    width:34px;height:34px;border-radius:10px;flex:none;position:relative;
+    background:radial-gradient(circle at 34% 28%,#ffffff 0%,#eef3ff 40%,#b9c6f2 78%,#8f9dd6 100%);
+    box-shadow:0 0 14px 2px rgba(170,190,255,.45);
+  }
+  .ib-txt{flex:1;min-width:0;line-height:1.35}
+  .ib-txt b{display:block;font-size:13.5px;color:#eef2ff;font-weight:600}
+  .ib-txt i{display:block;font-size:11px;color:#9aa5cd;font-style:normal;margin-top:1px}
+  .ib-btn{
+    flex:none;border:none;border-radius:11px;padding:9px 16px;font-size:13px;font-weight:700;
+    background:linear-gradient(135deg,#9db4ff,#7189e6);color:#0b1024;cursor:pointer;
+  }
+  .ib-btn:active{transform:scale(.97)}
+  .ib-x{
+    flex:none;width:26px;height:26px;border-radius:8px;border:none;background:transparent;
+    color:#7e89b4;font-size:18px;line-height:1;cursor:pointer;padding:0;
+  }
+
   /* ---------- 手机端适配 ---------- */
   @media(max-width:480px){
     body{padding-bottom:calc(30px + env(safe-area-inset-bottom))}
@@ -495,6 +524,14 @@
        <span style="color:#7c9cff">点击下方按钮开启，并允许播放声音。</span></p>
     <button class="startbtn" id="startBtn" type="button">开 始 使 用</button>
   </div>
+</div>
+
+<!-- 安装到桌面：仅在浏览器判定可安装（beforeinstallprompt 已触发）时出现 -->
+<div class="installbar" id="installBar" aria-live="polite">
+  <span class="ib-ico" aria-hidden="true"></span>
+  <span class="ib-txt"><b>安装到手机桌面</b><i>像 App 一样，一点就开</i></span>
+  <button class="ib-btn" id="installBtn" type="button">安装</button>
+  <button class="ib-x" id="installClose" type="button" aria-label="不再提示">×</button>
 </div>
 
 <!-- 到点提醒 -->
@@ -1205,6 +1242,64 @@ $('alertMusic').addEventListener('click', function(){
       }).catch(function(){ /* 注册失败不影响打卡与音乐 */ });
     });
   }catch(e){ /* 忽略：不影响主体功能 */ }
+})();
+
+/* ---------- 「安装到桌面」主动入口 ----------
+   背景：安卓 Chrome 满足可安装条件后会派发 beforeinstallprompt，
+   但默认入口藏在右上角菜单里，很多人找不到。这里捕获事件后直接在页面底部
+   弹出一条引导，点「安装」即调用原生安装弹窗，一步到位。
+   注意：该事件只在【浏览器判定可安装】时派发——它不出现，说明浏览器层面就不认为
+   可安装（微信/QQ 内置浏览器、国产浏览器常见），此时不显示引导条，避免点了没反应。 */
+(function initInstallPrompt(){
+  var bar = document.getElementById('installBar');
+  var btn = document.getElementById('installBtn');
+  var cls = document.getElementById('installClose');
+  if(!bar || !btn) return;
+  var deferred = null;
+
+  function isStandalone(){
+    try{
+      return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+             window.navigator.standalone === true;
+    }catch(e){ return false; }
+  }
+  function dismissed(){
+    try{ return localStorage.getItem('sleepCheckin.installDismissed') === '1'; }catch(e){ return false; }
+  }
+
+  function show(){ if(!isStandalone() && !dismissed()) bar.classList.add('show'); }
+  function hide(){ bar.classList.remove('show'); }
+
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();          // 暂缓浏览器自带弹窗，改由我们控制时机
+    deferred = e;
+    show();
+  });
+
+  window.addEventListener('appinstalled', function(){
+    deferred = null;
+    hide();
+    try{ toast('已添加到桌面，下次点图标直接打开'); }catch(e){}
+  });
+
+  btn.addEventListener('click', function(){
+    if(!deferred){ hide(); return; }
+    try{
+      deferred.prompt();
+      deferred.userChoice.then(function(choice){
+        if(choice && choice.outcome === 'accepted'){ hide(); }
+        deferred = null;
+      }).catch(function(){ deferred = null; hide(); });
+    }catch(e){ deferred = null; hide(); }
+  });
+
+  if(cls) cls.addEventListener('click', function(){
+    try{ localStorage.setItem('sleepCheckin.installDismissed','1'); }catch(e){}
+    hide();
+  });
+
+  // 已经以 App 方式运行就不再提示
+  if(isStandalone()){ hide(); }
 })();
 
 /* 启动层
