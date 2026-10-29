@@ -313,6 +313,8 @@
     flex:none;width:26px;height:26px;border-radius:8px;border:none;background:transparent;
     color:#7e89b4;font-size:18px;line-height:1;cursor:pointer;padding:0;
   }
+  /* 安装条显示时，把 toast 抬高，避免两者叠在一起 */
+  body.has-install .toast{bottom:calc(86px + env(safe-area-inset-bottom))}
 
   /* ---------- 手机端适配 ---------- */
   @media(max-width:480px){
@@ -1267,8 +1269,15 @@ $('alertMusic').addEventListener('click', function(){
     try{ return localStorage.getItem('sleepCheckin.installDismissed') === '1'; }catch(e){ return false; }
   }
 
-  function show(){ if(!isStandalone() && !dismissed()) bar.classList.add('show'); }
-  function hide(){ bar.classList.remove('show'); }
+  function show(){
+    if(isStandalone() || dismissed()) return;
+    bar.classList.add('show');
+    document.body.classList.add('has-install');
+  }
+  function hide(){
+    bar.classList.remove('show');
+    document.body.classList.remove('has-install');
+  }
 
   window.addEventListener('beforeinstallprompt', function(e){
     e.preventDefault();          // 暂缓浏览器自带弹窗，改由我们控制时机
@@ -1286,10 +1295,14 @@ $('alertMusic').addEventListener('click', function(){
     if(!deferred){ hide(); return; }
     try{
       deferred.prompt();
+      hide();                     // 系统安装弹窗已接管，引导条收起
       deferred.userChoice.then(function(choice){
-        if(choice && choice.outcome === 'accepted'){ hide(); }
+        if(choice && choice.outcome === 'dismissed'){
+          // 用户取消：不再打扰（避免反复弹）
+          try{ localStorage.setItem('sleepCheckin.installDismissed','1'); }catch(e){}
+        }
         deferred = null;
-      }).catch(function(){ deferred = null; hide(); });
+      }).catch(function(){ deferred = null; });
     }catch(e){ deferred = null; hide(); }
   });
 
