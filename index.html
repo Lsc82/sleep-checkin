@@ -1238,9 +1238,12 @@ $('alertMusic').addEventListener('click', function(){
     // file:// 协议下无法注册 SW，直接跳过
     if(location.protocol !== 'https:' && location.protocol !== 'http:') return;
     window.addEventListener('load', function(){
-      navigator.serviceWorker.register('sw.js', { scope: './' }).then(function(reg){
-        // 静默检查更新
+      // updateViaCache:'none' —— 每次导航都绕过 HTTP 缓存检查 sw.js 是否有更新。
+      // 否则 GitHub Pages 的 10 分钟缓存会让手机上一直沿用卡住的旧版，装不了也修不好。
+      navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).then(function(reg){
         try{ reg.update && reg.update(); }catch(e){}
+        // 若存在等待中的新版本，尽快接管（配合 skipWaiting）
+        if(reg.waiting){ try{ reg.waiting.postMessage({type:'SKIP_WAITING'}); }catch(e){} }
       }).catch(function(){ /* 注册失败不影响打卡与音乐 */ });
     });
   }catch(e){ /* 忽略：不影响主体功能 */ }
